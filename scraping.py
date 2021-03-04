@@ -1,85 +1,101 @@
-
-# Import Splinter and BeautifulSoup
+# Import Splinter, BeautifulSoup, and Pandas
 from splinter import Browser
 from bs4 import BeautifulSoup as soup
 import pandas as pd
-
-# Path to chromedriver
-#!which chromedriver
-#from selenium import webdriver
-#from webdriver_manager.chrome import ChromeDriverManager
-#driver = webdriver.Chrome(ChromeDriverManager().install())
-
-# Set the executable path and initialize the chrome browser in splinter
-executable_path = {'executable_path': 'chromedriver'}
-
-browser = Browser('chrome', **executable_path, headless=False)
-
-# Visit the mars nasa news site
-url = 'https://mars.nasa.gov/news/'
-browser.visit(url)
-# Optional delay for loading the page
-browser.is_element_present_by_css("ul.item_list li.slide", wait_time=1)
-
-#set up the HTML parser
-html = browser.html
-news_soup = soup(html, 'html.parser')
-slide_elem = news_soup.select_one('ul.item_list li.slide')
-#so the code 'ul.item_list li.slide' pinpoints the <li /> tag with the class of slide and the <ul /> tag with a class of item_list
-# In[6]
-slide_elem.find("div", class_='content_title')
-#When we chain fund to the slide_elem variable, we're saying, "This variable holds a ton of information, so look inside of that information to find this specific data." 
+import datetime as dt
 
 
-# to just get the text, Use the parent element to find the first `a` tag and save it as `news_title`
-news_title = slide_elem.find("div", class_='content_title').get_text()
-news_title
+def scrape_all():
+    # Initiate headless driver for deployment
+    browser = Browser("chrome", executable_path="chromedriver", headless=True)
+
+    news_title, news_paragraph = mars_news(browser)
+
+    # Run all scraping functions and store results in a dictionary
+    data = {
+        "news_title": news_title,
+        "news_paragraph": news_paragraph,
+        "featured_image": featured_image(browser),
+        "facts": mars_facts(),
+        "last_modified": dt.datetime.now()
+    }
+
+    # Stop webdriver and return data
+    browser.quit()
+    return data
 
 
-# Use the parent element to find the paragraph text
-news_p = slide_elem.find('div', class_="article_teaser_body").get_text()
-news_p
+def mars_news(browser):
 
-# ### Featured Images
+    # Scrape Mars News
+    # Visit the mars nasa news site
+    url = 'https://mars.nasa.gov/news/'
+    browser.visit(url)
 
+    # Optional delay for loading the page
+    browser.is_element_present_by_css("ul.item_list li.slide", wait_time=1)
 
-# Visit URL
-url = 'https://data-class-jpl-space.s3.amazonaws.com/JPL_Space/index.html'
-browser.visit(url)
+    # Convert the browser html to a soup object and then quit the browser
+    html = browser.html
+    news_soup = soup(html, 'html.parser')
 
+    # Add try/except for error handling
+    try:
+        slide_elem = news_soup.select_one("ul.item_list li.slide")
+        # Use the parent element to find the first 'a' tag and save it as 'news_title'
+        news_title = slide_elem.find("div", class_="content_title").get_text()
+        # Use the parent element to find the paragraph text
+        news_p = slide_elem.find("div", class_="article_teaser_body").get_text()
 
-# Find and click the full image button#the index 1 tells our browser to click the second button 
-full_image_elem = browser.find_by_tag('button')[1]
-full_image_elem.click()
+    except AttributeError:
+        return None, None
 
-# Parse the resulting html with soup
-html = browser.html
-img_soup = soup(html, 'html.parser')
-
-
-# Find the relative image url
-img_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
-img_url_rel
-# We were able to pull the link to the image by pointing BeautifulSoup to where the image will be, instead of grabbing the URL directly
-
-# Use the base URL to create an absolute URL
-img_url = f'https://data-class-jpl-space.s3.amazonaws.com/JPL_Space/{img_url_rel}'
-img_url
+    return news_title, news_p
 
 
-#we're creating a new DataFrame from the HTML table. The Pandas function read_html() specifically searches for and returns a list of tables found in the HTML. By specifying an index of 0, we're telling Pandas to pull only the first table it encounters, or the first item in the list. Then, it turns the table into a DataFrame.
-df = pd.read_html('http://space-facts.com/mars/')[0]
-#we assign columns to the new DataFrame for additional clarity.
-df.columns=['description', 'value']
-#By using the .set_index() function, we're turning the Description column into the DataFrame's index. inplace=True means that the updated index will remain in place, without having to reassign the DataFrame to a new variable.
-df.set_index('description', inplace=True)
-df
-df.to_html()
+def featured_image(browser):
+    # Visit URL
+    url = 'https://data-class-jpl-space.s3.amazonaws.com/JPL_Space/index.html'
+    browser.visit(url)
 
-#once done with scraping need to end the session
-browser.quit()
+    # Find and click the full image button
+    full_image_elem = browser.find_by_tag('button')[1]
+    full_image_elem.click()
 
+    # Parse the resulting html with soup
+    html = browser.html
+    img_soup = soup(html, 'html.parser')
 
+    # Add try/except for error handling
+    try:
+        # Find the relative image url
+        img_url_rel = img_soup.find('img', class_='fancybox-image').get('src')
 
+    except AttributeError:
+        return None
 
+    # Use the base url to create an absolute url
+    img_url = f'https://data-class-jpl-space.s3.amazonaws.com/JPL_Space/{img_url_rel}'
 
+    return img_url
+
+def mars_facts():
+    # Add try/except for error handling
+    try:
+        # Use 'read_html' to scrape the facts table into a dataframe
+        df = pd.read_html('http://space-facts.com/mars/')[0]
+
+    except BaseException:
+        return None
+
+    # Assign columns and set index of dataframe
+    df.columns=['Description', 'Mars']
+    df.set_index('Description', inplace=True)
+
+    # Convert dataframe into HTML format, add bootstrap
+    return df.to_html(classes="table table-striped")
+
+if __name__ == "__main__":
+
+    # If running as script, print scraped data
+    print(scrape_all())
