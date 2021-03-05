@@ -1,7 +1,6 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect
 from flask_pymongo import PyMongo
 import scraping
-
 # Let's break down what this code is doing.
 #The first line says that we'll use Flask to render a template.
 #The second line says we'll use PyMongo to interact with our Mongo database.
@@ -14,7 +13,6 @@ app.config["MONGO_URI"] = "mongodb://localhost:27017/mars_app"
 mongo = PyMongo(app)
 #app.config["MONGO_URI"] tells Python that our app will connect to Mongo using a URI, a uniform resource identifier similar to a URL.
 #"mongodb://localhost:27017/mars_app" is the URI we'll be using to connect our app to Mongo. This URI is saying that the app can reach Mongo through our localhost server, using port 27017, using a database named "mars_app".
-
 #let's define the route for the HTML page. In our script, type the following
 @app.route("/")
 def index():
@@ -41,6 +39,10 @@ def scrape():
    mars.update({}, mars_data, upsert=True)
    return redirect('/', code=302)
 
+# The final bit of code we need for Flask is to tell it to run
+if __name__ == "__main__":
+   app.run()
+
 # Let's look at these six lines a little closer.
 
 # The first line, @app.route(“/scrape”) defines the route that Flask will be using. This route, “/scrape”, will run the function that we create just beneath it.
@@ -59,6 +61,3 @@ def scrape():
 
 # Finally, we will add a redirect after successfully scraping the data: return redirect('/', code=302). This will navigate our page back to / where we can see the updated content.
 
-# The final bit of code we need for Flask is to tell it to run
-if __name__ == "__main__":
-   app.run()
